@@ -172,6 +172,7 @@ make web
 | `make cli` | Build native CLI (release) |
 | `make wasm` | Build WASM (debug) |
 | `make wasm-release` | Build WASM (release, optimized) |
+| `make wasm-release-f16` | Build WASM (release, experimental f16 inference — see `demucs-wasm/PERFORMANCE.md`) |
 | `make dev` | WASM debug + Vite dev server |
 | `make dev-release` | WASM release + Vite dev server |
 | `make web` | Full production web build |
