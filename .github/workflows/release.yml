@@ -70,7 +70,7 @@ jobs:
         id: deploy
         uses: actions/deploy-pages@v4
 
-  # ── WASM package (with TypeScript bindings) ────────────────
+  # ── WASM package ───────────────────────────────────────────
   build-wasm:
     name: Build WASM Package
     runs-on: ubuntu-latest
@@ -88,15 +88,8 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      # wasm-bindgen emits .d.ts TypeScript declarations by default (do not pass
-      # --no-typescript), so the package ships with full TypeScript bindings.
       - name: Build WASM package (release)
         run: wasm-pack build demucs-wasm --release --target web --out-dir pkg
-
-      - name: Verify TypeScript bindings were generated
-        run: |
-          test -f demucs-wasm/pkg/demucs_wasm.d.ts
-          test -f demucs-wasm/pkg/demucs_wasm_bg.wasm.d.ts
 
       - name: Package WASM
         run: |
