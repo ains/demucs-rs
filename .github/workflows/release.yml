@@ -70,6 +70,39 @@ jobs:
         id: deploy
         uses: actions/deploy-pages@v4
 
+  # ── WASM package ───────────────────────────────────────────
+  build-wasm:
+    name: Build WASM Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build WASM package (release)
+        run: wasm-pack build demucs-wasm --release --target web --out-dir pkg
+
+      - name: Package WASM
+        run: |
+          mv demucs-wasm/pkg demucs-wasm-web
+          cp LICENSE demucs-wasm-web/
+          tar czf demucs-wasm-web.tar.gz demucs-wasm-web
+
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: demucs-wasm-web
+          path: demucs-wasm-web.tar.gz
+
   # ── CLI binaries (matrix) ──────────────────────────────────
   build-cli:
     name: CLI (${{ matrix.target }})
@@ -227,7 +260,7 @@ jobs:
   # ── GitHub Release ─────────────────────────────────────────
   create-release:
     name: Create Release
-    needs: [build-cli, build-plugin]
+    needs: [build-cli, build-plugin, build-wasm]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
