@@ -28,7 +28,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        run: curl https://wasm-bindgen.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - uses: pnpm/action-setup@v4
         with:
@@ -86,7 +86,7 @@ jobs:
           key: wasm
 
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        run: curl https://wasm-bindgen.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build WASM package (release)
         run: wasm-pack build demucs-wasm --release --target web --out-dir pkg
