@@ -2182,6 +2182,7 @@ dependencies = [
  "hound",
  "pollster",
  "realfft",
+ "rustfft",
  "safetensors 0.5.3",
 ]
 

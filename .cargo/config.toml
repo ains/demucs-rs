@@ -1,8 +1,11 @@
 [alias]
 xtask = "run --package xtask --release --"
 
+# simd128: every WebGPU-capable browser also supports wasm SIMD, so this is a
+# safe baseline. It vectorizes the CPU half of the pipeline (rustfft/realfft
+# STFT + iSTFT, polyphase resampling, overlap-add accumulation).
 [target.wasm32-unknown-unknown]
-rustflags = ['--cfg', 'getrandom_backend="wasm_js"']
+rustflags = ['--cfg', 'getrandom_backend="wasm_js"', '-C', 'target-feature=+simd128']
 
 [target.aarch64-apple-darwin]
 rustflags = ["-C", "target-cpu=native"]

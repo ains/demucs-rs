@@ -6,6 +6,27 @@ edition = "2021"
 [lib]
 crate-type = ["cdylib"]
 
+[features]
+default = []
+# Experimental: run inference in f16 instead of f32. Roughly halves GPU memory
+# traffic, which most WGSL kernels are bound by. Requires the browser to expose
+# the WebGPU "shader-f16" feature (Chrome 120+ on most GPUs); the module fails
+# at kernel compilation on adapters without it, so ship f32 as the default.
+f16 = []
+
+# wasm-pack defaults to `wasm-opt -O`. -O3 optimizes harder for speed; the
+# --enable-* flags let wasm-opt process the simd128/bulk-memory instructions
+# rustc now emits (older binaryen versions reject them otherwise).
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = [
+    "-O3",
+    "--enable-simd",
+    "--enable-bulk-memory",
+    "--enable-nontrapping-float-to-int",
+    "--enable-sign-ext",
+    "--enable-mutable-globals",
+]
+
 [dependencies]
 demucs-core = { path = "../demucs-core", features = ["wgpu", "autotune", "fusion"] }
 burn = { version = "0.20.1", features = ["wgpu", "autotune", "fusion"] }

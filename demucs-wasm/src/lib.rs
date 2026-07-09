@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Once;
 
@@ -66,6 +68,11 @@ impl ForwardListener for ProgressListener {
     }
 }
 
+/// Experimental f16 inference: halves GPU memory traffic on browsers that
+/// expose the WebGPU "shader-f16" feature. See the `f16` cargo feature.
+#[cfg(feature = "f16")]
+type B = Wgpu<burn::tensor::f16, i32>;
+#[cfg(not(feature = "f16"))]
 type B = Wgpu;
 
 static PANIC_HOOK: Once = Once::new();
@@ -100,6 +107,74 @@ fn parse_model_opts(model_id: &str, stems: Vec<StemId>) -> Result<ModelOptions, 
         HTDEMUCS_FT_ID => Ok(ModelOptions::FineTuned(stems)),
         _ => Err(JsError::new(&format!("Unknown model: {}", model_id))),
     }
+}
+
+// ─── Model Cache ────────────────────────────────────────────────────────────
+
+/// The most recently loaded model, kept alive with its weights on the GPU.
+///
+/// Loading a model means parsing ~84 MB of safetensors and uploading every
+/// weight tensor to the GPU — several seconds on wasm. Caching the instance
+/// makes the warmup → separate flow load once instead of twice, and repeat
+/// separations skip the load entirely.
+struct CachedModel {
+    key: (String, usize, String),
+    model: Rc<Demucs<B>>,
+}
+
+thread_local! {
+    static MODEL_CACHE: RefCell<Option<CachedModel>> = const { RefCell::new(None) };
+}
+
+/// Fingerprint of the parts of ModelOptions that affect which models load/run.
+fn opts_fingerprint(opts: &ModelOptions) -> String {
+    match opts {
+        ModelOptions::FourStem => "4s".to_string(),
+        ModelOptions::SixStem => "6s".to_string(),
+        ModelOptions::FineTuned(stems) => {
+            let mut names: Vec<&str> = stems.iter().map(|s| s.as_str()).collect();
+            names.sort_unstable();
+            format!("ft:{}", names.join(","))
+        }
+    }
+}
+
+/// Load a model, reusing the cached instance when the same model (id, weight
+/// size, and options) was loaded before.
+fn load_model_cached(
+    opts: ModelOptions,
+    model_id: &str,
+    bytes: &[u8],
+    device: WgpuDevice,
+) -> Result<Rc<Demucs<B>>, JsError> {
+    let key = (model_id.to_string(), bytes.len(), opts_fingerprint(&opts));
+
+    let cached = MODEL_CACHE.with(|c| {
+        c.borrow()
+            .as_ref()
+            .and_then(|entry| (entry.key == key).then(|| entry.model.clone()))
+    });
+    if let Some(model) = cached {
+        return Ok(model);
+    }
+
+    let model = Rc::new(
+        Demucs::<B>::from_bytes(opts, bytes, device)
+            .map_err(|e| JsError::new(&format!("Failed to load model: {}", e)))?,
+    );
+    MODEL_CACHE.with(|c| {
+        *c.borrow_mut() = Some(CachedModel {
+            key,
+            model: model.clone(),
+        });
+    });
+    Ok(model)
+}
+
+/// Drop the cached model, releasing its GPU memory.
+#[wasm_bindgen]
+pub fn clear_model_cache() {
+    MODEL_CACHE.with(|c| c.borrow_mut().take());
 }
 
 // ─── Spectrogram API ────────────────────────────────────────────────────────
@@ -252,8 +327,7 @@ pub async fn warmup_model(model_bytes: &[u8], model_id: &str) -> Result<(), JsEr
         model_id,
         vec![StemId::Drums, StemId::Bass, StemId::Other, StemId::Vocals],
     )?;
-    let model = Demucs::<B>::from_bytes(opts, model_bytes, device)
-        .map_err(|e| JsError::new(&format!("Warmup model load failed: {}", e)))?;
+    let model = load_model_cached(opts, model_id, model_bytes, device)?;
 
     model.warmup().await;
 
@@ -325,8 +399,7 @@ pub async fn separate(
 
     let device = ensure_wgpu().await;
 
-    let model = Demucs::<B>::from_bytes(opts, model_bytes, device)
-        .map_err(|e| JsError::new(&format!("Failed to load model: {}", e)))?;
+    let model = load_model_cached(opts, model_id, model_bytes, device)?;
 
     let mut listener = ProgressListener::new(on_progress);
     let stems = model

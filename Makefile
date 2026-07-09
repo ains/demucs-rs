@@ -16,6 +16,11 @@ wasm:
 wasm-release:
 	wasm-pack build demucs-wasm --release --target web --out-dir ../web/src/wasm
 
+# Build WASM (release, experimental f16 inference — requires a browser with
+# the WebGPU "shader-f16" feature, e.g. recent Chrome on most GPUs)
+wasm-release-f16:
+	wasm-pack build demucs-wasm --release --target web --out-dir ../web/src/wasm -- --features f16
+
 # Install web dependencies (if needed) and build for production
 web: wasm-release
 	cd web && pnpm install && pnpm exec vite build
