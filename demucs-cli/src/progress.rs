@@ -48,11 +48,11 @@ impl ForwardListener for CliListener {
                     self.pb.finish_with_message("done");
                 }
             }
-            ForwardEvent::StemDone { index, total } => {
-                // Only finish on last stem if not chunked (single-segment path)
-                if self.num_chunks == 1 && index + 1 == total {
-                    self.pb.finish_with_message("done");
-                }
+            // Only finish on last stem if not chunked (single-segment path)
+            ForwardEvent::StemDone { index, total }
+                if self.num_chunks == 1 && index + 1 == total =>
+            {
+                self.pb.finish_with_message("done");
             }
             _ => {}
         }
